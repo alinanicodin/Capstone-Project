@@ -1,0 +1,254 @@
+-- 1.1 Count campaigns and sources and find the relationship between them -- 
+
+/* The number of distinct campaigns */
+SELECT COUNT(DISTINCT utm_campaign) AS 'Campaign Count'
+FROM page_visits;
+
+/* The number of distinct sources */
+SELECT COUNT(DISTINCT utm_source) AS 'Source Count'
+FROM page_visits;
+
+/* Relationship between campaigns and sources */
+SELECT DISTINCT utm_campaign AS 'Campaigns',
+                utm_source AS 'Sources'
+FROM page_visits;
+
+SELECT utm_campaign AS 'Campaigns',
+       utm_source AS 'Sources'
+FROM page_visits
+WHERE utm_campaign = 'cool-tshirts-search';
+
+
+
+-- 1.2 Pages that are on the CoolTShirts website--
+SELECT DISTINCT page_name AS 'Page Names'
+FROM page_visits;
+
+
+
+-- 2.1 Count first touches per campaign and source -- 
+
+/* Create a temporary table that returns the first touches for each user_id */
+WITH first_touch AS (
+    SELECT user_id,
+           MIN(timestamp) AS first_touch_at
+    FROM page_visits
+    GROUP BY user_id),
+/* Create another temporary table adding source and campaign columns by joining them on user_id and timestamp */
+     ft_attr AS (
+     SELECT ft.user_id,
+            ft.first_touch_at,
+            pv.utm_source,
+            pv.utm_campaign
+     FROM first_touch AS ft
+     JOIN page_visits AS pv
+       ON ft.user_id = pv.user_id 
+       AND ft.first_touch_at = pv.timestamp)
+/* Create a table that includes the total number of first touches group by source and campaign */
+SELECT ft_attr.utm_source AS 'Source',
+       ft_attr.utm_campaign AS 'Campaign',
+       COUNT(*) AS 'First Touch Count'
+FROM ft_attr
+GROUP BY 1, 2
+ORDER BY 3 DESC;
+ 
+
+
+-- 2.1 Count first touches per campaign and source (in percentage terms) -- 
+
+/* Create a temporary table that returns the first touches for each user_id */
+WITH first_touch AS (
+    SELECT user_id,
+           MIN(timestamp) AS first_touch_at
+    FROM page_visits
+    GROUP BY user_id),
+/* Create another temporary table adding source and campaign columns by joining them on user_id and timestamp */
+     ft_attr AS (
+     SELECT ft.user_id,
+            ft.first_touch_at,
+            pv.utm_source,
+            pv.utm_campaign
+     FROM first_touch AS ft
+     JOIN page_visits AS pv
+       ON ft.user_id = pv.user_id 
+       AND ft.first_touch_at = pv.timestamp),
+/* Create a temporary table that includes the total number of first touches group by source and campaign */
+     counting AS (
+     SELECT ft_attr.utm_source AS source,
+            ft_attr.utm_campaign AS campaign,
+            COUNT(*) AS ft_count
+     FROM ft_attr
+     GROUP BY 1, 2
+     ORDER BY 3 DESC),
+/* Create a temporary table that includes the total number of first touches */       
+     total_counting AS (
+     SELECT SUM(counting.ft_count) AS ft_total
+     FROM counting),
+/* Create a temporary table that is a CROSS JOIN between counting table and total_counting table */      
+     cj AS (
+     SELECT *
+     FROM counting
+     CROSS JOIN total_counting)
+/* Create a table that includes the total number of first touches in percentage terms group by source and campaign */       
+SELECT cj.source AS 'Source',
+       cj.campaign AS 'Campaign',
+       ROUND(100.0 * cj.ft_count / cj.ft_total,2) AS '% 1st touches'
+FROM cj
+GROUP BY 1, 2
+ORDER BY 3 DESC;
+
+
+
+-- 2.2 Count last touches per campaign and source -- 
+
+/* Create a temporary table that returns the last touches for each user_id */
+WITH last_touch AS (
+    SELECT user_id,
+           MAX(timestamp) AS last_touch_at
+    FROM page_visits
+    GROUP BY user_id),
+/* Create another temporary table adding source and campaign columns by joining them on user_id and timestamp */
+     lt_attr AS (
+     SELECT lt.user_id,
+            lt.last_touch_at,
+            pv.utm_source,
+            pv.utm_campaign
+     FROM last_touch AS lt
+     JOIN page_visits AS pv
+       ON lt.user_id = pv.user_id 
+       AND lt.last_touch_at = pv.timestamp)
+/* Create a table that includes the total number of last touches group by source and campaign */
+SELECT lt_attr.utm_source AS 'Source',
+       lt_attr.utm_campaign AS 'Campaign',
+       COUNT(*) AS 'Last Touch Count'
+FROM lt_attr
+GROUP BY 1, 2
+ORDER BY 3 DESC;
+
+
+
+-- 2.2 Count last touches per campaign and source (in percentage terms) -- 
+
+/* Create a temporary table that returns the last touches for each user_id */
+WITH last_touch AS (
+    SELECT user_id,
+           MAX(timestamp) AS last_touch_at
+    FROM page_visits
+    GROUP BY user_id),
+/* Create another temporary table adding source and campaign columns by joining them on user_id and timestamp */
+     lt_attr AS (
+     SELECT lt.user_id,
+            lt.last_touch_at,
+            pv.utm_source,
+            pv.utm_campaign
+     FROM last_touch AS lt
+     JOIN page_visits AS pv
+       ON lt.user_id = pv.user_id 
+       AND lt.last_touch_at = pv.timestamp),
+/* Create a temporary table that includes the total number of last touches group by source and campaign */
+     counting AS (
+     SELECT lt_attr.utm_source AS source,
+            lt_attr.utm_campaign AS campaign,
+            COUNT(*) AS lt_count
+     FROM lt_attr
+     GROUP BY 1, 2
+     ORDER BY 3 DESC),
+/* Create a temporary table that includes the total number of last touches */       
+     total_counting AS (
+     SELECT SUM(counting.lt_count) AS lt_total
+     FROM counting),
+/* Create a temporary table that is a CROSS JOIN between counting table and total_counting table */      
+     cj AS (
+     SELECT *
+     FROM counting
+     CROSS JOIN total_counting)
+/* Create a table that includes the total number of last touches in percentage terms group by source and campaign */       
+SELECT cj.source AS 'Source',
+       cj.campaign AS 'Campaign',
+       ROUND(100.0 * cj.lt_count / cj.lt_total,2) AS '% Last touches'
+FROM cj
+GROUP BY 1, 2
+ORDER BY 3 DESC;
+
+
+
+-- 2.3 Count visitors who made a purchase
+SELECT page_name AS 'Page Name', 
+       COUNT(DISTINCT user_id) AS 'Visitors'
+FROM page_visits
+GROUP BY page_name;
+
+
+
+-- 2.4 Count last touches per campaign and source that led to a purchase
+
+/* Create a temporary table that returns the last touches for each user_id */
+WITH last_touch AS (
+    SELECT user_id,
+           MAX(timestamp) AS last_touch_at
+    FROM page_visits
+    WHERE page_name = '4 - purchase'
+    GROUP BY user_id),
+/* Create another temporary table adding source and campaign columns by joining them on user_id and timestamp */
+     lt_attr AS (
+     SELECT lt.user_id,
+            lt.last_touch_at,
+            pv.utm_source,
+            pv.utm_campaign
+     FROM last_touch AS lt
+     JOIN page_visits AS pv
+       ON lt.user_id = pv.user_id 
+       AND lt.last_touch_at = pv.timestamp)
+/* Create a table that includes the total number of last touches group by source and campaign */
+SELECT lt_attr.utm_source AS 'Source',
+       lt_attr.utm_campaign AS 'Campaign',
+       COUNT(*) AS 'Count'
+FROM lt_attr
+GROUP BY 1, 2
+ORDER BY 3 DESC;
+
+
+
+-- 2.4 Count last touches per campaign and source that led to a purchase (in percentage terms)
+
+/* Create a temporary table that returns the last touches for each user_id */
+WITH last_touch AS (
+    SELECT user_id,
+           MAX(timestamp) AS last_touch_at
+    FROM page_visits
+    WHERE page_name = '4 - purchase'
+    GROUP BY user_id),
+/* Create another temporary table adding source and campaign columns by joining them on user_id and timestamp */
+     lt_attr AS (
+     SELECT lt.user_id,
+            lt.last_touch_at,
+            pv.utm_source,
+            pv.utm_campaign
+     FROM last_touch AS lt
+     JOIN page_visits AS pv
+       ON lt.user_id = pv.user_id 
+       AND lt.last_touch_at = pv.timestamp),
+/* Create a temporary table that includes the total number of last touches group by source and campaign */
+     counting AS (
+     SELECT lt_attr.utm_source AS source,
+            lt_attr.utm_campaign AS campaign,
+            COUNT(*) AS lt_count
+     FROM lt_attr
+     GROUP BY 1, 2
+     ORDER BY 3 DESC),
+/* Create a temporary table that includes the total number of last touches */       
+     total_counting AS (
+     SELECT SUM(counting.lt_count) AS lt_total
+     FROM counting),
+/* Create a temporary table that is a CROSS JOIN between counting table and total_counting table */      
+     cj AS (
+     SELECT *
+     FROM counting
+     CROSS JOIN total_counting)
+/* Create a table that includes the total number of last touches in percentage terms group by source and campaign */       
+SELECT cj.source AS 'Source',
+       cj.campaign AS 'Campaign',
+       ROUND(100.0 * cj.lt_count / cj.lt_total,2) AS '% Purchases'
+FROM cj
+GROUP BY 1, 2
+ORDER BY 3 DESC;
